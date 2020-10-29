@@ -372,17 +372,17 @@ func (s *xlStorage) CrawlAndGetDataUsage(ctx context.Context, cache dataUsageCac
 	}
 	opts := globalHealConfig
 
-	dataUsageInfo, err := crawlDataFolder(ctx, s.diskPath, cache, func(item crawlItem) (int64, error) {
+	dataUsageInfo, err := crawlDataFolder(ctx, s.diskPath, cache, func(item crawlItem) (sizeSummary, error) {
 		// Look for `xl.meta/xl.json' at the leaf.
 		if !strings.HasSuffix(item.Path, SlashSeparator+xlStorageFormatFile) &&
 			!strings.HasSuffix(item.Path, SlashSeparator+xlStorageFormatFileV1) {
 			// if no xl.meta/xl.json found, skip the file.
-			return 0, errSkipFile
+			return sizeSummary{}, errSkipFile
 		}
 
 		buf, err := ioutil.ReadFile(item.Path)
 		if err != nil {
-			return 0, errSkipFile
+			return sizeSummary{}, errSkipFile
 		}
 
 		// Remove filename which is the meta file.
@@ -390,12 +390,13 @@ func (s *xlStorage) CrawlAndGetDataUsage(ctx context.Context, cache dataUsageCac
 
 		fivs, err := getFileInfoVersions(buf, item.bucket, item.objectPath())
 		if err != nil {
-			return 0, errSkipFile
+			return sizeSummary{}, errSkipFile
 		}
 
 		var totalSize int64
 		var numVersions = len(fivs.Versions)
 
+		sizeS := sizeSummary{}
 		for i, version := range fivs.Versions {
 			var successorModTime time.Time
 			if i > 0 {
@@ -432,9 +433,10 @@ func (s *xlStorage) CrawlAndGetDataUsage(ctx context.Context, cache dataUsageCac
 				}
 				totalSize += size
 			}
-			item.healReplication(ctx, objAPI, actionMeta{oi: oi})
+			item.healReplication(ctx, objAPI, actionMeta{oi: oi}, &sizeS)
 		}
-		return totalSize, nil
+		sizeS.totalSize = totalSize
+		return sizeS, nil
 	})
 
 	if err != nil {

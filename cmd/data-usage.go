@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/minio/minio/cmd/logger"
@@ -40,8 +41,8 @@ const (
 )
 
 // storeDataUsageInBackend will store all objects sent on the gui channel until closed.
-func storeDataUsageInBackend(ctx context.Context, objAPI ObjectLayer, gui <-chan DataUsageInfo) {
-	for dataUsageInfo := range gui {
+func storeDataUsageInBackend(ctx context.Context, objAPI ObjectLayer, dui <-chan DataUsageInfo) {
+	for dataUsageInfo := range dui {
 		dataUsageJSON, err := json.Marshal(dataUsageInfo)
 		if err != nil {
 			logger.LogIf(ctx, err)
@@ -53,7 +54,7 @@ func storeDataUsageInBackend(ctx context.Context, objAPI ObjectLayer, gui <-chan
 			logger.LogIf(ctx, err)
 			continue
 		}
-
+		fmt.Printf("Storing %+v\n", dataUsageInfo)
 		_, err = objAPI.PutObject(ctx, dataUsageBucket, dataUsageObjName, NewPutObjReader(r, nil, nil), ObjectOptions{})
 		if !isErrBucketNotFound(err) {
 			logger.LogIf(ctx, err)
